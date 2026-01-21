@@ -1,253 +1,133 @@
-const { 
-  Client, 
-  GatewayIntentBits, 
-  SlashCommandBuilder, 
-  ActionRowBuilder, 
-  ButtonBuilder, 
-  ButtonStyle, 
-  EmbedBuilder,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle
+const {
+  Client,
+  GatewayIntentBits,
+  SlashCommandBuilder,
+  Routes,
+  REST,
+  PermissionFlagsBits
 } = require("discord.js");
 const fs = require("fs");
 
-// ========= CONFIG =========
-const TOKEN = process.env.TOKEN; // <-- METTI IL TOKEN COME SECRET SU GITHUB
-const DATA_FILE = "./data.json";
+const TOKEN = process.env.DISCORD_TOKEN;
 
-// ========= CLIENT =========
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// ========= DATA =========
-function loadData() {
-  if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({
-      regolamento: "📜 Regolamento non ancora impostato.",
-      config: {
-        economia: {
-          contanti_base: 500,
-          banca_base: 2000,
-          stipendio_base: 300
-        },
-        whitelist: {
-          ruolo_approvato: "Whitelist"
-        }
-      },
-      users: {},
-      candidature: {}
-    }, null, 2));
-  }
-  return JSON.parse(fs.readFileSync(DATA_FILE));
+// ===== DATABASE =====
+const dbPath = "./data.json";
+let db = {
+  regolamento: "Regolamento non impostato.",
+  profili: {},
+  economia: {}
+};
+
+if (fs.existsSync(dbPath)) {
+  db = JSON.parse(fs.readFileSync(dbPath));
 }
 
-function saveData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+function saveDB() {
+  fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 }
 
-// ========= READY =========
-client.once("ready", async () => {
+// ===== SLASH COMMANDS =====
+const commands = [
+  new SlashCommandBuilder()
+    .setName("regolamento")
+    .setDescription("Gestione regolamento")
+    .addSubcommand(s =>
+      s.setName("mostra").setDescription("Mostra regolamento")
+    )
+    .addSubcommand(s =>
+      s.setName("modifica")
+        .setDescription("Modifica regolamento")
+        .addStringOption(o =>
+          o.setName("testo").setDescription("Nuovo regolamento").setRequired(true)
+        )
+    ),
+
+  new SlashCommandBuilder()
+    .setName("profilo")
+    .setDescription("Profilo RP")
+    .addSubcommand(s =>
+      s.setName("crea")
+        .addStringOption(o => o.setName("nome").setRequired(true))
+        .addStringOption(o => o.setName("eta").setRequired(true))
+        .addStringOption(o => o.setName("lavoro").setRequired(true))
+    )
+    .addSubcommand(s =>
+      s.setName("mostra")
+        .addUserOption(o => o.setName("utente"))
+    ),
+
+  new SlashCommandBuilder()
+    .setName("eco")
+    .setDescription("Economia")
+    .addSubcommand(s =>
+      s.setName("balance")
+        .addUserOption(o => o.setName("utente"))
+    )
+].map(c => c.toJSON());
+
+// ===== REGISTER COMMANDS =====
+client.once("clientReady", async () => {
   console.log(`✅ Bot online come ${client.user.tag}`);
 
-  const commands = [
-    new SlashCommandBuilder()
-      .setName("menu")
-      .setDescription("Apri il menu RP"),
-
-    new SlashCommandBuilder()
-      .setName("regolamento")
-      .setDescription("Visualizza il regolamento"),
-
-    new SlashCommandBuilder()
-      .setName("setregolamento")
-      .setDescription("Modifica il regolamento (staff)")
-      .addStringOption(o =>
-        o.setName("testo")
-          .setDescription("Nuovo regolamento")
-          .setRequired(true)
-      ),
-
-    new SlashCommandBuilder()
-      .setName("profilo")
-      .setDescription("Visualizza il profilo RP"),
-
-    new SlashCommandBuilder()
-      .setName("economia")
-      .setDescription("Configura l'economia (staff)")
-      .addIntegerOption(o => o.setName("contanti").setDescription("Contanti base"))
-      .addIntegerOption(o => o.setName("banca").setDescription("Banca base"))
-      .addIntegerOption(o => o.setName("stipendio").setDescription("Stipendio base")),
-
-    new SlashCommandBuilder()
-      .setName("whitelist")
-      .setDescription("Invia la candidatura whitelist")
-  ];
-
-  await client.application.commands.set(commands);
+  const rest = new REST({ version: "10" }).setToken(TOKEN);
+  await rest.put(
+    Routes.applicationCommands(client.user.id),
+    { body: commands }
+  );
 });
 
-// ========= INTERACTIONS =========
+// ===== INTERACTIONS =====
 client.on("interactionCreate", async interaction => {
-  const data = loadData();
+  if (!interaction.isChatInputCommand()) return;
 
-  // ----- MENU -----
-  if (interaction.isChatInputCommand() && interaction.commandName === "menu") {
-    const embed = new EmbedBuilder()
-      .setTitle("📋 Menu RP")
-      .setDescription("Seleziona una sezione")
-      .setColor("Blue");
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("player")
-        .setLabel("Player")
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId("staff")
-        .setLabel("Staff")
-        .setStyle(ButtonStyle.Danger)
-    );
-
-    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-  }
-
-  // ----- BUTTONS -----
-  if (interaction.isButton()) {
-    if (interaction.customId === "player") {
-      return interaction.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("👤 Player Menu")
-            .setDescription("Usa:\n`/profilo`\n`/regolamento`\n`/whitelist`")
-            .setColor("Green")
-        ],
-        ephemeral: true
-      });
+  // REGOLAMENTO
+  if (interaction.commandName === "regolamento") {
+    if (interaction.options.getSubcommand() === "mostra") {
+      return interaction.reply(db.regolamento);
     }
 
-    if (interaction.customId === "staff") {
-      return interaction.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("🛠️ Staff Panel")
-            .setDescription("Usa:\n`/setregolamento`\n`/economia`")
-            .setColor("Red")
-        ],
-        ephemeral: true
-      });
+    if (interaction.options.getSubcommand() === "modifica") {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return interaction.reply({ content: "❌ Solo admin", ephemeral: true });
+      }
+      db.regolamento = interaction.options.getString("testo");
+      saveDB();
+      return interaction.reply("✅ Regolamento aggiornato");
     }
   }
 
-  // ----- REGOLAMENTO -----
-  if (interaction.isChatInputCommand() && interaction.commandName === "regolamento") {
-    return interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("📜 Regolamento")
-          .setDescription(data.regolamento)
-          .setColor("Gold")
-      ],
-      ephemeral: true
-    });
-  }
-
-  if (interaction.isChatInputCommand() && interaction.commandName === "setregolamento") {
-    data.regolamento = interaction.options.getString("testo");
-    saveData(data);
-    return interaction.reply({ content: "✅ Regolamento aggiornato", ephemeral: true });
-  }
-
-  // ----- PROFILO -----
-  if (interaction.isChatInputCommand() && interaction.commandName === "profilo") {
-    const userId = interaction.user.id;
-
-    if (!data.users[userId]) {
-      data.users[userId] = {
-        contanti: data.config.economia.contanti_base,
-        banca: data.config.economia.banca_base
+  // PROFILO
+  if (interaction.commandName === "profilo") {
+    if (interaction.options.getSubcommand() === "crea") {
+      db.profili[interaction.user.id] = {
+        nome: interaction.options.getString("nome"),
+        eta: interaction.options.getString("eta"),
+        lavoro: interaction.options.getString("lavoro")
       };
-      saveData(data);
+      saveDB();
+      return interaction.reply("✅ Profilo creato");
     }
 
-    const u = data.users[userId];
-
-    return interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle(`👤 Profilo RP`)
-          .addFields(
-            { name: "💵 Contanti", value: `${u.contanti}`, inline: true },
-            { name: "🏦 Banca", value: `${u.banca}`, inline: true }
-          )
-          .setColor("Aqua")
-      ],
-      ephemeral: true
-    });
+    if (interaction.options.getSubcommand() === "mostra") {
+      const user = interaction.options.getUser("utente") || interaction.user;
+      const p = db.profili[user.id];
+      if (!p) return interaction.reply("❌ Profilo non trovato");
+      return interaction.reply(
+        `👤 **${p.nome}**\n🎂 ${p.eta}\n💼 ${p.lavoro}`
+      );
+    }
   }
 
-  // ----- ECONOMIA -----
-  if (interaction.isChatInputCommand() && interaction.commandName === "economia") {
-    const c = interaction.options.getInteger("contanti");
-    const b = interaction.options.getInteger("banca");
-    const s = interaction.options.getInteger("stipendio");
-
-    if (c !== null) data.config.economia.contanti_base = c;
-    if (b !== null) data.config.economia.banca_base = b;
-    if (s !== null) data.config.economia.stipendio_base = s;
-
-    saveData(data);
-
-    return interaction.reply({ content: "✅ Economia aggiornata", ephemeral: true });
-  }
-
-  // ----- WHITELIST -----
-  if (interaction.isChatInputCommand() && interaction.commandName === "whitelist") {
-    const modal = new ModalBuilder()
-      .setCustomId("whitelist_modal")
-      .setTitle("Whitelist RP");
-
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("nome")
-          .setLabel("Nome RP")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("eta")
-          .setLabel("Età RP")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("esperienza")
-          .setLabel("Esperienza RP")
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(true)
-      )
-    );
-
-    return interaction.showModal(modal);
-  }
-
-  // ----- MODAL -----
-  if (interaction.isModalSubmit() && interaction.customId === "whitelist_modal") {
-    data.candidature[interaction.user.id] = {
-      nome: interaction.fields.getTextInputValue("nome"),
-      eta: interaction.fields.getTextInputValue("eta"),
-      esperienza: interaction.fields.getTextInputValue("esperienza")
-    };
-
-    saveData(data);
-
-    return interaction.reply({ content: "✅ Candidatura inviata!", ephemeral: true });
+  // ECONOMIA
+  if (interaction.commandName === "eco") {
+    const user = interaction.options.getUser("utente") || interaction.user;
+    db.economia[user.id] ??= 0;
+    return interaction.reply(`💰 Saldo: ${db.economia[user.id]}`);
   }
 });
 
-// ========= LOGIN =========
 client.login(TOKEN);
