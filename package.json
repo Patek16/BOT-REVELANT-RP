@@ -1,7 +1,7 @@
 {
-  "name": "bot-revelant-rp",
+  "name": "gta-rp-discord-bot",
   "version": "1.0.0",
-  "description": "Bot Discord RP completo",
+  "description": "Bot Discord GTA 5 RP Console con menu",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
