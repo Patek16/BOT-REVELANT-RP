@@ -1,71 +1,40 @@
 const {
   Client,
   GatewayIntentBits,
-  Events,
-  ActionRowBuilder,
-  StringSelectMenuBuilder
+  Events
 } = require('discord.js');
 
-// CREA IL CLIENT
+const roles = require('./roles.json');
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// BOT ONLINE
+function getStaffLevel(member) {
+  if (member.roles.cache.has(roles.founder)) return 'Founder';
+  if (member.roles.cache.has(roles.cofounder)) return 'Co-Founder';
+  if (member.roles.cache.has(roles.admin)) return 'Admin';
+  if (member.roles.cache.has(roles.moderator)) return 'Moderator';
+  if (member.roles.cache.has(roles.helper)) return 'Helper';
+  return null;
+}
+
 client.once(Events.ClientReady, () => {
-  console.log('✅ Bot GTA RP Online');
+  console.log('✅ Bot online – test ruoli staff');
 });
 
-// SLASH COMMAND /menu
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName !== 'menu') return;
 
-  if (interaction.commandName === 'menu') {
+  const staff = getStaffLevel(interaction.member);
 
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId('main_menu')
-      .setPlaceholder('Seleziona un’opzione')
-      .addOptions([
-        {
-          label: '📋 Whitelist',
-          value: 'whitelist'
-        },
-        {
-          label: '❓ Aiuto',
-          value: 'help'
-        }
-      ]);
-
-    const row = new ActionRowBuilder().addComponents(menu);
-
-    await interaction.reply({
-      content: '🎮 **Menu RP**',
-      components: [row],
-      ephemeral: true
-    });
-  }
+  await interaction.reply({
+    content: staff
+      ? `🛠️ Sei riconosciuto come **${staff}**`
+      : '👤 Sei un player normale',
+    ephemeral: true
+  });
 });
 
-// CLICK MENU
-client.on(Events.InteractionCreate, async interaction => {
-  if (!interaction.isStringSelectMenu()) return;
-
-  if (interaction.customId !== 'main_menu') return;
-
-  if (interaction.values[0] === 'whitelist') {
-    await interaction.reply({
-      content: '📋 Sistema whitelist in costruzione',
-      ephemeral: true
-    });
-  }
-
-  if (interaction.values[0] === 'help') {
-    await interaction.reply({
-      content: '❓ Contatta uno staff per assistenza',
-      ephemeral: true
-    });
-  }
-});
-
-// LOGIN BOT
 client.login(process.env.TOKEN);
