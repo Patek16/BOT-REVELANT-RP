@@ -1,0 +1,18 @@
+{
+  "staffRoles": {
+    "founder": "",
+    "admin": "",
+    "moderator": "",
+    "helper": ""
+  },
+
+  "ticket": {
+    "categoryId": "",
+    "staffRoleId": "",
+    "logChannelId": ""
+  },
+
+  "server": {
+    "infoChannelId": ""
+  }
+}
