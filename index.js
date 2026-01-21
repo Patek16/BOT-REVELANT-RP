@@ -1,18 +1,20 @@
 const {
   Client,
   GatewayIntentBits,
-  SlashCommandBuilder,
+  Events,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
-  Events
+  ButtonStyle
 } = require('discord.js');
 const fs = require('fs');
 
-const data = JSON.parse(fs.readFileSync('./data.json'));
+const config = JSON.parse(fs.readFileSync('./data.json'));
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers
+  ]
 });
 
 client.once(Events.ClientReady, () => {
@@ -20,66 +22,97 @@ client.once(Events.ClientReady, () => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+
+  // /menu
   if (interaction.isChatInputCommand()) {
-    if (interaction.commandName === 'menu') {
+    if (interaction.commandName !== 'menu') return;
 
-      const member = interaction.member;
-      const roles = member.roles.cache;
+    const member = interaction.member;
+    const roles = member.roles.cache;
 
-      const isStaff =
-        roles.has(data.roles.helper) ||
-        roles.has(data.roles.mod) ||
-        roles.has(data.roles.admin);
+    const isStaff =
+      roles.has(config.roles.helper) ||
+      roles.has(config.roles.mod) ||
+      roles.has(config.roles.admin);
 
-      const buttons = new ActionRowBuilder().addComponents(
+    // BOTTONI PLAYER
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('player_info')
+        .setLabel('📄 Info Server')
+        .setStyle(ButtonStyle.Primary),
+
+      new ButtonBuilder()
+        .setCustomId('player_ticket')
+        .setLabel('🎫 Ticket')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    // BOTTONE STAFF (solo staff)
+    if (isStaff) {
+      row.addComponents(
         new ButtonBuilder()
-          .setCustomId('player_info')
-          .setLabel('📄 Info Server')
+          .setCustomId('staff_menu')
+          .setLabel('🛡️ Menu Staff')
+          .setStyle(ButtonStyle.Danger)
+      );
+    }
+
+    return interaction.reply({
+      content: '📋 **Menu principale**',
+      components: [row],
+      ephemeral: true
+    });
+  }
+
+  // CLICK BOTTONI
+  if (interaction.isButton()) {
+
+    // INFO SERVER
+    if (interaction.customId === 'player_info') {
+      return interaction.reply({
+        content: '📄 **Info server RP**\n\nServer GTA 5 RP su console.\nBenvenuto!',
+        ephemeral: true
+      });
+    }
+
+    // TICKET
+    if (interaction.customId === 'player_ticket') {
+      return interaction.reply({
+        content: '🎫 Sistema ticket (in arrivo)',
+        ephemeral: true
+      });
+    }
+
+    // MENU STAFF
+    if (interaction.customId === 'staff_menu') {
+
+      const staffRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('staff_roles')
+          .setLabel('👮 Gestione Ruoli')
           .setStyle(ButtonStyle.Primary),
 
         new ButtonBuilder()
-          .setCustomId('player_ticket')
-          .setLabel('📬 Ticket')
+          .setCustomId('staff_config')
+          .setLabel('⚙️ Config Bot')
           .setStyle(ButtonStyle.Secondary)
       );
 
-      if (isStaff) {
-        buttons.addComponents(
-          new ButtonBuilder()
-            .setCustomId('staff_panel')
-            .setLabel('🛡️ Pannello Staff')
-            .setStyle(ButtonStyle.Danger)
-        );
-      }
-
-      await interaction.reply({
-        content: '📋 **Menu principale**',
-        components: [buttons],
-        ephemeral: true
-      });
-    }
-  }
-
-  // CLICK BUTTON
-  if (interaction.isButton()) {
-
-    if (interaction.customId === 'player_info') {
       return interaction.reply({
-        content: '📄 Info server in arrivo...',
+        content: '🛡️ **Pannello Staff**',
+        components: [staffRow],
         ephemeral: true
       });
     }
 
-    if (interaction.customId === 'player_ticket') {
+    // PLACEHOLDER STAFF
+    if (
+      interaction.customId === 'staff_roles' ||
+      interaction.customId === 'staff_config'
+    ) {
       return interaction.reply({
-        content: '📬 Sistema ticket in arrivo...',
-        ephemeral: true
-      });
-    }
-
-    if (interaction.customId === 'staff_panel') {
-      return interaction.reply({
-        content: '🛡️ **Pannello staff** (in sviluppo)',
+        content: '🚧 Funzione in sviluppo',
         ephemeral: true
       });
     }
