@@ -1,0 +1,15 @@
+{
+  "regolamento": "📜 Regolamento non ancora impostato.",
+  "config": {
+    "economia": {
+      "contanti_base": 500,
+      "banca_base": 2000,
+      "stipendio_base": 300
+    },
+    "whitelist": {
+      "ruolo_approvato": "Whitelist"
+    }
+  },
+  "users": {},
+  "candidature": {}
+}
