@@ -1,122 +1,155 @@
 const {
   Client,
   GatewayIntentBits,
-  Events,
+  SlashCommandBuilder,
+  Routes,
+  REST,
   ActionRowBuilder,
+  StringSelectMenuBuilder,
   ButtonBuilder,
-  ButtonStyle
-} = require('discord.js');
-const fs = require('fs');
+  ButtonStyle,
+  PermissionFlagsBits,
+  InteractionType
+} = require("discord.js");
 
-const config = JSON.parse(fs.readFileSync('./data.json'));
+/* =========================
+   CONFIG IN MEMORIA (STEP 1)
+========================= */
+const config = {
+  staffRoleId: null
+};
 
+/* =========================
+   CLIENT
+========================= */
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers
-  ]
+  intents: [GatewayIntentBits.Guilds]
 });
 
-client.once(Events.ClientReady, () => {
+/* =========================
+   READY
+========================= */
+client.once("ready", () => {
   console.log(`✅ Bot online come ${client.user.tag}`);
 });
 
-client.on(Events.InteractionCreate, async interaction => {
+/* =========================
+   SLASH COMMANDS
+========================= */
+const commands = [
+  new SlashCommandBuilder()
+    .setName("menu")
+    .setDescription("Apri il menu principale del bot")
+    .toJSON(),
 
-  // /menu
-  if (interaction.isChatInputCommand()) {
-    if (interaction.commandName !== 'menu') return;
+  new SlashCommandBuilder()
+    .setName("setstaff")
+    .setDescription("Imposta il ruolo staff del bot")
+    .addRoleOption(opt =>
+      opt.setName("ruolo")
+        .setDescription("Ruolo staff")
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON()
+];
 
-    const member = interaction.member;
-    const roles = member.roles.cache;
+const rest = new REST({ version: "10" }).setToken("TOKEN");
 
-    const isStaff =
-      roles.has(config.roles.helper) ||
-      roles.has(config.roles.mod) ||
-      roles.has(config.roles.admin);
-
-    // BOTTONI PLAYER
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('player_info')
-        .setLabel('📄 Info Server')
-        .setStyle(ButtonStyle.Primary),
-
-      new ButtonBuilder()
-        .setCustomId('player_ticket')
-        .setLabel('🎫 Ticket')
-        .setStyle(ButtonStyle.Secondary)
+(async () => {
+  try {
+    await rest.put(
+      Routes.applicationCommands("YOUR_CLIENT_ID"),
+      { body: commands }
     );
+    console.log("✅ Slash commands registrati");
+  } catch (err) {
+    console.error(err);
+  }
+})();
 
-    // BOTTONE STAFF (solo staff)
-    if (isStaff) {
-      row.addComponents(
-        new ButtonBuilder()
-          .setCustomId('staff_menu')
-          .setLabel('🛡️ Menu Staff')
-          .setStyle(ButtonStyle.Danger)
-      );
-    }
+/* =========================
+   INTERACTIONS
+========================= */
+client.on("interactionCreate", async interaction => {
+
+  /* ---- /setstaff ---- */
+  if (interaction.isChatInputCommand() && interaction.commandName === "setstaff") {
+    const ruolo = interaction.options.getRole("ruolo");
+    config.staffRoleId = ruolo.id;
 
     return interaction.reply({
-      content: '📋 **Menu principale**',
+      content: `✅ Ruolo staff impostato su **${ruolo.name}**`,
+      ephemeral: true
+    });
+  }
+
+  /* ---- /menu ---- */
+  if (interaction.isChatInputCommand() && interaction.commandName === "menu") {
+
+    if (!config.staffRoleId) {
+      return interaction.reply({
+        content: "⚠️ Ruolo staff non configurato. Usa **/setstaff**",
+        ephemeral: true
+      });
+    }
+
+    const member = interaction.member;
+    if (!member.roles.cache.has(config.staffRoleId)) {
+      return interaction.reply({
+        content: "⛔ Non hai il ruolo staff",
+        ephemeral: true
+      });
+    }
+
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId("menu_categoria")
+      .setPlaceholder("Seleziona una categoria")
+      .addOptions([
+        {
+          label: "Staff",
+          description: "Comandi staff",
+          value: "staff"
+        }
+      ]);
+
+    const row = new ActionRowBuilder().addComponents(menu);
+
+    return interaction.reply({
+      content: "📂 **Menu Principale**",
       components: [row],
       ephemeral: true
     });
   }
 
-  // CLICK BOTTONI
-  if (interaction.isButton()) {
+  /* ---- MENU STAFF ---- */
+  if (interaction.isStringSelectMenu() && interaction.customId === "menu_categoria") {
 
-    // INFO SERVER
-    if (interaction.customId === 'player_info') {
-      return interaction.reply({
-        content: '📄 **Info server RP**\n\nServer GTA 5 RP su console.\nBenvenuto!',
-        ephemeral: true
-      });
-    }
+    if (interaction.values[0] !== "staff") return;
 
-    // TICKET
-    if (interaction.customId === 'player_ticket') {
-      return interaction.reply({
-        content: '🎫 Sistema ticket (in arrivo)',
-        ephemeral: true
-      });
-    }
+    const button = new ButtonBuilder()
+      .setCustomId("config_bot")
+      .setLabel("Configura Bot")
+      .setStyle(ButtonStyle.Primary);
 
-    // MENU STAFF
-    if (interaction.customId === 'staff_menu') {
+    const row = new ActionRowBuilder().addComponents(button);
 
-      const staffRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('staff_roles')
-          .setLabel('👮 Gestione Ruoli')
-          .setStyle(ButtonStyle.Primary),
+    return interaction.update({
+      content: "🛠 **Menu Staff**",
+      components: [row]
+    });
+  }
 
-        new ButtonBuilder()
-          .setCustomId('staff_config')
-          .setLabel('⚙️ Config Bot')
-          .setStyle(ButtonStyle.Secondary)
-      );
-
-      return interaction.reply({
-        content: '🛡️ **Pannello Staff**',
-        components: [staffRow],
-        ephemeral: true
-      });
-    }
-
-    // PLACEHOLDER STAFF
-    if (
-      interaction.customId === 'staff_roles' ||
-      interaction.customId === 'staff_config'
-    ) {
-      return interaction.reply({
-        content: '🚧 Funzione in sviluppo',
-        ephemeral: true
-      });
-    }
+  /* ---- BOTTONE CONFIG ---- */
+  if (interaction.isButton() && interaction.customId === "config_bot") {
+    return interaction.reply({
+      content: "⚙️ Pannello configurazione (in arrivo)",
+      ephemeral: true
+    });
   }
 });
 
-client.login(process.env.TOKEN);
+/* =========================
+   LOGIN
+========================= */
+client.login("TOKEN");
